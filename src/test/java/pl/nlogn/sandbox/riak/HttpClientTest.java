@@ -30,22 +30,32 @@ import org.junit.Test;
 public class HttpClientTest {
     public static final String RIAK_URL = "http://192.168.0.4:8098/riak";
 
+    public static final String REC_KEY1 = "conc1";
+
     private IRiakClient httpClient;
+
+    private Bucket myBucket;
 
     @Before
     public void setUp() throws Exception {
         httpClient = RiakFactory.httpClient(RIAK_URL);
+        myBucket = httpClient.fetchBucket("test1").execute();
+        myBucket.store(REC_KEY1, "foo").execute();
     }
 
     @After
-    public void tearDown() {
+    public void tearDown() throws Exception {
+        myBucket.delete(REC_KEY1).execute();
         httpClient.shutdown();
     }
 
     @Test
     public void testFetch() throws Exception {
-        Bucket myBucket = httpClient.fetchBucket("test1").execute();
-        IRiakObject myObject = myBucket.fetch("conc1").execute();
+        IRiakObject myObject = myBucket.fetch(REC_KEY1).execute();
+        System.out.println(myObject.getValueAsString());
+        System.out.println("VClock: " + myObject.getVClockAsString());
+        myObject.setValue(myObject.getValueAsString() + 1);
+        myObject = myBucket.store(myObject).returnBody(true).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("VClock: " + myObject.getVClockAsString());
     }
