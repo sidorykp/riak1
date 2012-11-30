@@ -5,9 +5,13 @@ import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
+import com.basho.riak.client.cap.ConflictResolver;
+import junit.framework.Assert;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.Collection;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -51,17 +55,45 @@ public class HttpClientTest {
 
     @Test
     public void testFetch() throws Exception {
-        IRiakObject myObject = myBucket.fetch(REC_KEY1).execute();
+        FreshDeleteConflictResolver res1 = new FreshDeleteConflictResolver();
+        IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(res1).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("vclock: " + myObject.getVClockAsString());
 
         myObject.setValue(myObject.getValueAsString() + 1);
-        myObject = myBucket.store(myObject).returnBody(true).execute();
+        myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("vclock: " + myObject.getVClockAsString());
 
         myBucket.delete(REC_KEY1).execute();
-        myBucket.store(REC_KEY1, "foo").execute();
-        myObject = myBucket.fetch(REC_KEY1).execute();
+        myObject = myBucket.store(REC_KEY1, "foo").returnBody(true).withResolver(res1).execute();
+        System.out.println(myObject.getValueAsString());
+        System.out.println("vclock: " + myObject.getVClockAsString());
+        Assert.assertEquals(2, res1.getSiblingsCount());
+    }
+
+    private class FreshDeleteConflictResolver implements ConflictResolver<IRiakObject> {
+
+        private int siblingsCount;
+
+        @Override
+        public IRiakObject resolve(Collection<IRiakObject> siblings) {
+            siblingsCount = siblings.size();
+            IRiakObject ret = null;
+            for (IRiakObject s: siblings) {
+                if (! "".equals(s.getValueAsString())) {
+                    ret = s;
+                }
+            }
+            return ret;
+        }
+
+        public int getSiblingsCount() {
+            return siblingsCount;
+        }
+
+        public void setSiblingsCount(int siblingsCount) {
+            this.siblingsCount = siblingsCount;
+        }
     }
 }
