@@ -5,6 +5,7 @@ import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
+import com.basho.riak.client.cap.UnresolvedConflictException;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -54,9 +55,14 @@ public class HttpClientTest {
         IRiakObject myObject = myBucket.fetch(REC_KEY1).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("VClock: " + myObject.getVClockAsString());
+
         myObject.setValue(myObject.getValueAsString() + 1);
         myObject = myBucket.store(myObject).returnBody(true).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("VClock: " + myObject.getVClockAsString());
+
+        myBucket.delete(REC_KEY1).execute();
+        myBucket.store(REC_KEY1, "foo").execute();
+        myObject = myBucket.fetch(REC_KEY1).execute();
     }
 }
