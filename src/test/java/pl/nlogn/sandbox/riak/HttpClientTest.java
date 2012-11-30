@@ -4,11 +4,14 @@ package pl.nlogn.sandbox.riak;
 import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
+import com.basho.riak.client.RiakRetryFailedException;
 import com.basho.riak.client.bucket.Bucket;
-import com.basho.riak.client.cap.UnresolvedConflictException;
+import com.basho.riak.client.cap.Retrier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+
+import java.util.concurrent.Callable;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -46,7 +49,7 @@ public class HttpClientTest {
 
     @After
     public void tearDown() throws Exception {
-        myBucket.delete(REC_KEY1).execute();
+        myBucket.delete(REC_KEY1).withRetrier(new DeleteRetrier()).execute();
         httpClient.shutdown();
     }
 
@@ -61,8 +64,17 @@ public class HttpClientTest {
         System.out.println(myObject.getValueAsString());
         System.out.println("VClock: " + myObject.getVClockAsString());
 
-        myBucket.delete(REC_KEY1).execute();
+        myBucket.delete(REC_KEY1).withRetrier(new DeleteRetrier()).execute();
         myBucket.store(REC_KEY1, "foo").execute();
         myObject = myBucket.fetch(REC_KEY1).execute();
+    }
+
+    private class DeleteRetrier implements Retrier {
+
+        @Override
+        public <T> T attempt(Callable<T> command) throws RiakRetryFailedException {
+            System.out.println("DeleteRetrier::attempt");
+            return null;
+        }
     }
 }
