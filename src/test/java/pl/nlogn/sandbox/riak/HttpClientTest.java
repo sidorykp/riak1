@@ -3,6 +3,7 @@ package pl.nlogn.sandbox.riak;
 
 import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
+import com.basho.riak.client.RiakException;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.ConflictResolver;
@@ -12,6 +13,7 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.Collection;
+import java.util.Date;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -34,7 +36,11 @@ import java.util.Collection;
 public class HttpClientTest {
     public static final String RIAK_URL = "http://192.168.0.4:8098/riak";
 
+    public static final String REC_BUCKET1 = "test1";
+
     public static final String REC_KEY1 = "conc1";
+
+    public static final String REC_VALUE1 = "value1";
 
     private IRiakClient httpClient;
 
@@ -43,8 +49,8 @@ public class HttpClientTest {
     @Before
     public void setUp() throws Exception {
         httpClient = RiakFactory.httpClient(RIAK_URL);
-        myBucket = httpClient.fetchBucket("test1").execute();
-        myBucket.store(REC_KEY1, "foo").execute();
+        myBucket = httpClient.fetchBucket(REC_BUCKET1).execute();
+        myBucket.store(REC_KEY1, REC_VALUE1).execute();
     }
 
     @After
@@ -66,10 +72,60 @@ public class HttpClientTest {
         System.out.println("vclock: " + myObject.getVClockAsString());
 
         myBucket.delete(REC_KEY1).execute();
-        myObject = myBucket.store(REC_KEY1, "foo").returnBody(true).withResolver(res1).execute();
+        myObject = myBucket.store(REC_KEY1, REC_VALUE1).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject.getValueAsString());
         System.out.println("vclock: " + myObject.getVClockAsString());
         Assert.assertEquals(2, res1.getSiblingsCount());
+    }
+
+    @Test
+    public void testUpdateParallel() throws Exception {
+        int clientCount = 10;
+        UpdateChangeCommand[] updates = new UpdateChangeCommand[clientCount];
+        DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
+        for (int i = 0; i < clientCount; ++ i) {
+            updates[i] = new UpdateChangeCommand(RIAK_URL, REC_BUCKET1, REC_KEY1);
+            executors[i] = new DataChangeExecutor("UpdateChange" + i, updates[i]);
+        }
+        for (int i = 0; i < clientCount; ++ i) {
+            executors[i].start();
+        }
+        for (int i = 0; i < clientCount; ++ i) {
+            executors[i].join();
+        }
+        for (int i = 0; i < clientCount; ++ i) {
+            System.out.println(updates[i].getSiblingsCount());
+        }
+    }
+
+    private class UpdateChangeCommand implements DataChangeCommand {
+        private IRiakClient httpClient;
+
+        private Bucket myBucket;
+
+        private FreshDeleteConflictResolver res;
+
+        public UpdateChangeCommand(String clientUrl, String bucket, String key) {
+            try {
+                httpClient = RiakFactory.httpClient(clientUrl);
+                myBucket = httpClient.fetchBucket(bucket).execute();
+                res = new FreshDeleteConflictResolver();
+            } catch (RiakException e) {
+                e.printStackTrace();
+            }
+        }
+
+        @Override
+        public void execute() throws Exception {
+            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(res).execute();
+            myObject.setValue(myObject.getValueAsString() + 1);
+            myObject = myBucket.store(myObject).returnBody(true).withResolver(res).execute();
+            httpClient.shutdown();
+        }
+
+        public int getSiblingsCount() {
+            return res.getSiblingsCount();
+        }
     }
 
     private class FreshDeleteConflictResolver implements ConflictResolver<IRiakObject> {
@@ -80,9 +136,16 @@ public class HttpClientTest {
         public IRiakObject resolve(Collection<IRiakObject> siblings) {
             siblingsCount = siblings.size();
             IRiakObject ret = null;
+            Date lastModifiedMax = null;
             for (IRiakObject s: siblings) {
                 if (! "".equals(s.getValueAsString())) {
-                    ret = s;
+                    if (ret == null) {
+                        ret = s;
+                        lastModifiedMax = s.getLastModified();
+                    } else if (s.getLastModified().after(lastModifiedMax)) {
+                        ret = s;
+                        lastModifiedMax = s.getLastModified();
+                    }
                 }
             }
             return ret;
