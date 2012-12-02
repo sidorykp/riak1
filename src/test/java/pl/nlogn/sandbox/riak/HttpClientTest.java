@@ -8,9 +8,12 @@ import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.ConflictResolver;
 import junit.framework.Assert;
+import org.jboss.byteman.contrib.bmunit.BMScript;
+import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.Collection;
 import java.util.Date;
@@ -33,6 +36,7 @@ import java.util.Date;
 * Date: 11/28/12
 * Time: 9:41 PM
 */
+@RunWith(BMUnitRunner.class)
 public class HttpClientTest {
     public static final String RIAK_URL = "http://192.168.0.4:8098/riak";
 
@@ -79,7 +83,8 @@ public class HttpClientTest {
     }
 
     @Test
-    public void testUpdateParallel() throws Exception {
+    @BMScript(value="testUpdate_parallel1", dir="target/test-classes")
+    public void testUpdate_Parallel1() throws Exception {
         int clientCount = 10;
         UpdateChangeCommand[] updates = new UpdateChangeCommand[clientCount];
         DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
@@ -94,7 +99,9 @@ public class HttpClientTest {
             executors[i].join();
         }
         for (int i = 0; i < clientCount; ++ i) {
-            System.out.println(updates[i].getSiblingsCount());
+            System.out.print(updates[i].getSiblingsCount());
+            // NOTE the resolution of "lastModified" is very low, it looks like the resolution is 1 second
+            System.out.println(" : " + updates[i].getRiakObject().getLastModified().getTime());
         }
     }
 
@@ -104,6 +111,8 @@ public class HttpClientTest {
         private Bucket myBucket;
 
         private FreshDeleteConflictResolver res;
+
+        private IRiakObject riakObject;
 
         public UpdateChangeCommand(String clientUrl, String bucket, String key) {
             try {
@@ -119,12 +128,16 @@ public class HttpClientTest {
         public void execute() throws Exception {
             IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(res).execute();
             myObject.setValue(myObject.getValueAsString() + 1);
-            myObject = myBucket.store(myObject).returnBody(true).withResolver(res).execute();
+            this.riakObject = myBucket.store(myObject).returnBody(true).withResolver(res).execute();
             httpClient.shutdown();
         }
 
         public int getSiblingsCount() {
             return res.getSiblingsCount();
+        }
+
+        public IRiakObject getRiakObject() {
+            return riakObject;
         }
     }
 

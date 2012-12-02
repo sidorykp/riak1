@@ -8,16 +8,55 @@
     <artifactId>riak1</artifactId>
     <version>1.0</version>
 
+    <properties>
+        <byteman.version>2.1.0</byteman.version>
+        <riak-client.version>1.0.6</riak-client.version>
+        <junit.version>4.10</junit.version>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>com.basho.riak</groupId>
             <artifactId>riak-client</artifactId>
-            <version>1.0.6</version>
+            <version>${riak-client.version}</version>
         </dependency>
         <dependency>
             <groupId>junit</groupId>
             <artifactId>junit</artifactId>
-            <version>4.10</version>
+            <version>${junit.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <!-- for Byteman -->
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman</artifactId>
+            <scope>test</scope>
+            <version>${byteman.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman-submit</artifactId>
+            <scope>test</scope>
+            <version>${byteman.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman-install</artifactId>
+            <scope>test</scope>
+            <version>${byteman.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jboss.byteman</groupId>
+            <artifactId>byteman-bmunit</artifactId>
+            <scope>test</scope>
+            <version>${byteman.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.sun</groupId>
+            <artifactId>tools</artifactId>
+            <version>1.7</version>
+            <scope>system</scope>
+            <systemPath>${java.home}/../lib/tools.jar</systemPath>
         </dependency>
     </dependencies>
 </project>

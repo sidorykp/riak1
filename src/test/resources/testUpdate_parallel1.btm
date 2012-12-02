@@ -1,0 +1,19 @@
+RULE Thread Coordination, Rendezvous 1 Creation
+INTERFACE DataChangeCommand
+METHOD <init>
+AT ENTRY
+IF ! isRendezvous ("threads1",10)
+DO createRendezvous("threads1",10,true);
+createCounter("threads1Cnt");
+traceln("rendezvous1 created: " + readCounter("threads1Cnt"));
+ENDRULE
+
+RULE Thread Coordination, Rendezvous 1
+INTERFACE DataChangeCommand
+METHOD execute
+AT ENTRY
+IF TRUE
+DO
+traceln("rendezvous1: " + incrementCounter("threads1Cnt"));
+rendezvous("threads1");
+ENDRULE
