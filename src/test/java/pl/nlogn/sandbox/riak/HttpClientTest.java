@@ -38,7 +38,7 @@ import java.util.Date;
 */
 @RunWith(BMUnitRunner.class)
 public class HttpClientTest {
-    public static final String RIAK_URL = "http://192.168.0.4:8098/riak";
+    public static final String[] RIAK_URL = {"http://192.168.0.4:8098/riak", "http://192.168.0.11:8098/riak", "http://192.168.0.12:8098/riak"};
 
     public static final String REC_BUCKET1 = "test1";
 
@@ -52,7 +52,7 @@ public class HttpClientTest {
 
     @Before
     public void setUp() throws Exception {
-        httpClient = RiakFactory.httpClient(RIAK_URL);
+        httpClient = RiakFactory.httpClient(RIAK_URL[0]);
         myBucket = httpClient.fetchBucket(REC_BUCKET1).execute();
         myBucket.store(REC_KEY1, REC_VALUE1).execute();
     }
@@ -85,11 +85,11 @@ public class HttpClientTest {
     @Test
     @BMScript(value="testUpdate_parallel1", dir="target/test-classes")
     public void testUpdate_Parallel1() throws Exception {
-        int clientCount = 10;
+        int clientCount = 50;
         UpdateChangeCommand[] updates = new UpdateChangeCommand[clientCount];
         DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
         for (int i = 0; i < clientCount; ++ i) {
-            updates[i] = new UpdateChangeCommand(RIAK_URL, REC_BUCKET1, REC_KEY1);
+            updates[i] = new UpdateChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
             executors[i] = new DataChangeExecutor("UpdateChange" + i, updates[i]);
         }
         for (int i = 0; i < clientCount; ++ i) {
@@ -99,7 +99,7 @@ public class HttpClientTest {
             executors[i].join();
         }
         for (int i = 0; i < clientCount; ++ i) {
-            System.out.print(updates[i].getSiblingsCount());
+            System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getSiblingsCountPost());
             // NOTE the resolution of "lastModified" is very low, it looks like the resolution is 1 second
             System.out.println(" : " + updates[i].getRiakObject().getLastModified().getTime());
         }
@@ -110,7 +110,9 @@ public class HttpClientTest {
 
         private Bucket myBucket;
 
-        private FreshDeleteConflictResolver res;
+        private FreshDeleteConflictResolver resPre;
+
+        private FreshDeleteConflictResolver resPost;
 
         private IRiakObject riakObject;
 
@@ -118,7 +120,8 @@ public class HttpClientTest {
             try {
                 httpClient = RiakFactory.httpClient(clientUrl);
                 myBucket = httpClient.fetchBucket(bucket).execute();
-                res = new FreshDeleteConflictResolver();
+                resPre = new FreshDeleteConflictResolver();
+                resPost = new FreshDeleteConflictResolver();
             } catch (RiakException e) {
                 e.printStackTrace();
             }
@@ -126,14 +129,18 @@ public class HttpClientTest {
 
         @Override
         public void execute() throws Exception {
-            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(res).execute();
+            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(resPre).execute();
             myObject.setValue(myObject.getValueAsString() + 1);
-            this.riakObject = myBucket.store(myObject).returnBody(true).withResolver(res).execute();
+            this.riakObject = myBucket.store(myObject).returnBody(true).withResolver(resPost).execute();
             httpClient.shutdown();
         }
 
-        public int getSiblingsCount() {
-            return res.getSiblingsCount();
+        public int getSiblingsCountPre() {
+            return resPre.getSiblingsCount();
+        }
+
+        public int getSiblingsCountPost() {
+            return resPost.getSiblingsCount();
         }
 
         public IRiakObject getRiakObject() {
