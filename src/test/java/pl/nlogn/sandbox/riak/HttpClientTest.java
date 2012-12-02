@@ -86,11 +86,15 @@ public class HttpClientTest {
     @BMScript(value="testUpdate_parallel1", dir="target/test-classes")
     public void testUpdate_Parallel1() throws Exception {
         int clientCount = 50;
-        UpdateChangeCommand[] updates = new UpdateChangeCommand[clientCount];
+        HttpSingleRecordChangeCommand[] updates = new HttpSingleRecordChangeCommand[clientCount];
         DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
         for (int i = 0; i < clientCount; ++ i) {
-            updates[i] = new UpdateChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
-            executors[i] = new DataChangeExecutor("UpdateChange" + i, updates[i]);
+            if (i % 2 == 0) {
+                updates[i] = new UpdateChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
+            } else {
+                updates[i] = new DeleteChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
+            }
+            executors[i] = new DataChangeExecutor("Change" + i, updates[i]);
         }
         for (int i = 0; i < clientCount; ++ i) {
             executors[i].start();
@@ -99,84 +103,45 @@ public class HttpClientTest {
             executors[i].join();
         }
         for (int i = 0; i < clientCount; ++ i) {
-            System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getSiblingsCountPost());
+            System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
+                    + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
             // NOTE the resolution of "lastModified" is very low, it looks like the resolution is 1 second
-            System.out.println(" : " + updates[i].getRiakObject().getLastModified().getTime());
+            System.out.println(" : " + (updates[i].getRiakObject() != null ? updates[i].getRiakObject().getLastModified().getTime(): ""));
         }
     }
 
-    private class UpdateChangeCommand implements DataChangeCommand {
-        private IRiakClient httpClient;
-
-        private Bucket myBucket;
-
-        private FreshDeleteConflictResolver resPre;
-
-        private FreshDeleteConflictResolver resPost;
-
-        private IRiakObject riakObject;
+    private class UpdateChangeCommand extends HttpSingleRecordChangeCommand {
 
         public UpdateChangeCommand(String clientUrl, String bucket, String key) {
-            try {
-                httpClient = RiakFactory.httpClient(clientUrl);
-                myBucket = httpClient.fetchBucket(bucket).execute();
-                resPre = new FreshDeleteConflictResolver();
-                resPost = new FreshDeleteConflictResolver();
-            } catch (RiakException e) {
-                e.printStackTrace();
-            }
+            super(clientUrl, bucket, key);
         }
 
         @Override
         public void execute() throws Exception {
             IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(resPre).execute();
-            myObject.setValue(myObject.getValueAsString() + 1);
-            this.riakObject = myBucket.store(myObject).returnBody(true).withResolver(resPost).execute();
+            if (myObject != null) {
+                myObject.setValue(myObject.getValueAsString() + 1);
+                setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
+            } else {
+                setRiakObject(myBucket.store(REC_KEY1, REC_VALUE1).returnBody(true).withResolver(resPost).execute());
+            }
             httpClient.shutdown();
-        }
-
-        public int getSiblingsCountPre() {
-            return resPre.getSiblingsCount();
-        }
-
-        public int getSiblingsCountPost() {
-            return resPost.getSiblingsCount();
-        }
-
-        public IRiakObject getRiakObject() {
-            return riakObject;
         }
     }
 
-    private class FreshDeleteConflictResolver implements ConflictResolver<IRiakObject> {
+    private class DeleteChangeCommand extends HttpSingleRecordChangeCommand {
 
-        private int siblingsCount;
+        public DeleteChangeCommand(String clientUrl, String bucket, String key) {
+            super(clientUrl, bucket, key);
+        }
 
         @Override
-        public IRiakObject resolve(Collection<IRiakObject> siblings) {
-            siblingsCount = siblings.size();
-            IRiakObject ret = null;
-            Date lastModifiedMax = null;
-            for (IRiakObject s: siblings) {
-                if (! "".equals(s.getValueAsString())) {
-                    if (ret == null) {
-                        ret = s;
-                        lastModifiedMax = s.getLastModified();
-                    } else if (s.getLastModified().after(lastModifiedMax)) {
-                        ret = s;
-                        lastModifiedMax = s.getLastModified();
-                    }
-                }
+        public void execute() throws Exception {
+            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(resPre).execute();
+            if (myObject != null) {
+                myBucket.delete(myObject).execute();
             }
-            return ret;
-        }
-
-        public int getSiblingsCount() {
-            return siblingsCount;
-        }
-
-        public void setSiblingsCount(int siblingsCount) {
-            this.siblingsCount = siblingsCount;
+            httpClient.shutdown();
         }
     }
 }

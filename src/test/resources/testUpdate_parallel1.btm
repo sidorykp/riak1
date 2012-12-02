@@ -8,8 +8,20 @@ createCounter("threads1Cnt");
 traceln("rendezvous1 created: " + readCounter("threads1Cnt"));
 ENDRULE
 
-RULE Thread Coordination, Rendezvous 1
-INTERFACE DataChangeCommand
+RULE Thread Coordination, Rendezvous 1, class 1
+# NOTE using just an interface did not work
+CLASS HttpClientTest$UpdateChangeCommand
+METHOD execute
+AT ENTRY
+IF TRUE
+DO
+traceln("rendezvous1: " + incrementCounter("threads1Cnt"));
+rendezvous("threads1");
+ENDRULE
+
+RULE Thread Coordination, Rendezvous 1, class 2
+# NOTE using just an interface did not work
+CLASS HttpClientTest$DeleteChangeCommand
 METHOD execute
 AT ENTRY
 IF TRUE
