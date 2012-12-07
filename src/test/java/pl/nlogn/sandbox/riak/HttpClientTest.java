@@ -3,10 +3,8 @@ package pl.nlogn.sandbox.riak;
 
 import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
-import com.basho.riak.client.RiakException;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
-import com.basho.riak.client.cap.ConflictResolver;
 import junit.framework.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -14,9 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-
-import java.util.Collection;
-import java.util.Date;
+import pl.nlogn.sandbox.riak.domain.Test1;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -44,7 +40,11 @@ public class HttpClientTest {
 
     public static final String REC_KEY1 = "conc1";
 
+    public static final String REC_KEY2 = "conc2";
+
     public static final String REC_VALUE1 = "value1";
+
+    public static final String REC_VALUE2 = "value2";
 
     private IRiakClient httpClient;
 
@@ -61,6 +61,19 @@ public class HttpClientTest {
     public void tearDown() throws Exception {
         myBucket.delete(REC_KEY1).execute();
         httpClient.shutdown();
+    }
+
+    @Test
+    public void testFetchPojo() throws Exception {
+        Test1 pojo = new Test1(REC_KEY2, REC_VALUE2);
+
+        myBucket.store(pojo).execute();
+
+        pojo = myBucket.fetch(REC_KEY2, Test1.class).execute();
+
+        System.out.println(pojo.toString());
+
+        myBucket.delete(REC_KEY2);
     }
 
     @Test
@@ -90,9 +103,9 @@ public class HttpClientTest {
         DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
         for (int i = 0; i < clientCount; ++ i) {
             if (i % 2 == 0) {
-                updates[i] = new UpdateChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
+                updates[i] = new UpdateChangeCommand(RIAK_URL[(i/2) % 2], REC_BUCKET1, REC_KEY1);
             } else {
-                updates[i] = new DeleteChangeCommand(RIAK_URL[i % 2], REC_BUCKET1, REC_KEY1);
+                updates[i] = new DeleteChangeCommand(RIAK_URL[(i/2) % 2], REC_BUCKET1, REC_KEY1);
             }
             executors[i] = new DataChangeExecutor("Change" + i, updates[i]);
         }
@@ -102,6 +115,7 @@ public class HttpClientTest {
         for (int i = 0; i < clientCount; ++ i) {
             executors[i].join();
         }
+        System.out.println("siblings: pre : deletedPre : post : deletedPost");
         for (int i = 0; i < clientCount; ++ i) {
             System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
                     + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
