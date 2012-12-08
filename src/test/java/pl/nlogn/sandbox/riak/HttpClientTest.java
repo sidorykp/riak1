@@ -93,12 +93,23 @@ public class HttpClientTest {
         Test1 myObject = myBucket.fetch(REC_KEY2, Test1.class).withResolver(res1).execute();
         System.out.println(myObject);
 
-        myObject.setValue(myObject.getValue() + 1);
-        myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
+        Mutation<Test1> mutation = new Test1Mutation("1");
+        myObject = myBucket.store(myObject).returnBody(true).withMutator(mutation).withResolver(res1).execute();
         System.out.println(myObject);
 
         myBucket.delete(REC_KEY2).execute();
+        myObject = myBucket.fetch(REC_KEY2, Test1.class).withResolver(res1).execute();
+        Assert.assertNull(myObject);
+
         myObject = new Test1(REC_KEY2, REC_VALUE2);
+        try {
+            // TODO The object does not exist an we try to use a Mutation: NPE occurs, this is a bug
+            // in the Riak Client code
+            myObject = myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(res1).execute();
+            Assert.fail("The expected bug has been fixed, strange");
+        } catch (NullPointerException e) {
+            System.out.println("Bug 1");
+        }
         myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject);
         Assert.assertEquals(1, res1.getSiblingsCount());
@@ -118,6 +129,7 @@ public class HttpClientTest {
             }
             executors[i] = new DataChangeExecutor("Change" + i, updates[i]);
         }
+        long start = System.currentTimeMillis();
         for (int i = 0; i < clientCount; ++ i) {
             executors[i].start();
         }
@@ -129,7 +141,7 @@ public class HttpClientTest {
             System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
                     + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
             // NOTE the resolution of "lastModified" is very low, it looks like the resolution is 1 second
-            System.out.println(" : " + (updates[i].getRiakObject() != null ? updates[i].getRiakObject().getLastModified().getTime(): ""));
+            System.out.println(" : " + (updates[i].getRiakObject() != null ? (updates[i].getRiakObject().getLastModified().getTime() - start): ""));
         }
     }
 
@@ -147,6 +159,7 @@ public class HttpClientTest {
             }
             executors[i] = new DataChangeExecutor("Change" + i, updates[i]);
         }
+        long start = System.currentTimeMillis();
         for (int i = 0; i < clientCount; ++ i) {
             executors[i].start();
         }
@@ -157,7 +170,7 @@ public class HttpClientTest {
         for (int i = 0; i < clientCount; ++ i) {
             System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
                     + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
-            System.out.println(" : " + (updates[i].getRiakObject() != null ? updates[i].getRiakObject().getTimestamp() + " : " + updates[i].getRiakObject().getValue() : ""));
+            System.out.println(" : " + (updates[i].getRiakObject() != null ? (updates[i].getRiakObject().getTimestamp() - start) + " : " + updates[i].getRiakObject().getValue() : ""));
         }
     }
 
@@ -208,21 +221,23 @@ public class HttpClientTest {
             try {
                 myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
             } catch (Exception e) {
-                System.out.println(e);
+                System.out.println("Bug 3: " + e);
             }
             if (myObject != null) {
-                Mutation<Test1> mutation = new Test1Mutation("1");
+                myObject.setValue(myObject.getValue() + "1");
                 try {
-                    setRiakObject(myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(resPost).execute());
+                    // TODO when a tombstone is available at this moment then an error will occur
+                    // the error will occur when a JSON conversion on a tombstone occurs
+                    setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
-                    System.out.println(e);
+                    System.out.println("Bug 2: " + e);
                 }
             } else {
                 myObject = new Test1(getKey(), REC_VALUE2);
                 try {
                     setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
-                    System.out.println(e);
+                    System.out.println("Bug 4: " + e);
                 }
             }
             httpClient.shutdown();
