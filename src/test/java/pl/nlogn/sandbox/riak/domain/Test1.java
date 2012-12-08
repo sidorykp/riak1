@@ -51,7 +51,7 @@ public class Test1 {
     public Test1(String key, String value) {
         this.key = key;
         this.value = value;
-        this.timestamp = System.nanoTime();
+        this.timestamp = System.currentTimeMillis();
     }
 
     public long getTimestamp() {

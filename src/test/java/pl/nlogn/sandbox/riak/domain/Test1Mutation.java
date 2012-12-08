@@ -1,4 +1,6 @@
-package pl.nlogn.sandbox.riak;
+package pl.nlogn.sandbox.riak.domain;
+
+import com.basho.riak.client.cap.Mutation;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -15,11 +17,23 @@ package pl.nlogn.sandbox.riak;
 * License for the specific language governing permissions and limitations under
 * the License.
 * User: pawel
-* Date: 12/2/12
-* Time: 11:05 AM
-*/
-public interface DataChangeCommand {
-    public void execute() throws Exception;
+* Date: 12/7/12
 
-    public String getKey();
+* Time: 11:09 PM
+*/
+public class Test1Mutation implements Mutation<Test1> {
+    private String sufix;
+
+    public Test1Mutation(String sufix) {
+        this.sufix = sufix;
+    }
+
+    @Override
+    public Test1 apply(Test1 original) {
+        if (original != null) {
+            original.setValue(original.getValue() + sufix);
+            original.setTimestamp(System.currentTimeMillis());
+        }
+        return original;
+    }
 }

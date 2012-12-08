@@ -1,10 +1,9 @@
 package pl.nlogn.sandbox.riak;
 
-import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.cap.ConflictResolver;
+import pl.nlogn.sandbox.riak.domain.Test1;
 
 import java.util.Collection;
-import java.util.Date;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -21,30 +20,26 @@ import java.util.Date;
 * License for the specific language governing permissions and limitations under
 * the License.
 * User: pawel
-* Date: 12/2/12
-* Time: 9:15 PM
+* Date: 12/8/12
+* Time: 3:29 PM
 */
-public class FreshDeleteConflictResolver implements ConflictResolver<IRiakObject>, AuditableConflictResolver {
+public class FreshPojoDeleteConflictResolver implements ConflictResolver<Test1>, AuditableConflictResolver {
     private int siblingsCount;
 
     private int deletedSiblingsCount;
 
     @Override
-    public IRiakObject resolve(Collection<IRiakObject> siblings) {
+    public Test1 resolve(Collection<Test1> siblings) {
         siblingsCount = siblings.size();
-        IRiakObject ret = null;
-        Date lastModifiedMax = null;
-        for (IRiakObject s: siblings) {
-            if (! "".equals(s.getValueAsString())) {
-                if (ret == null) {
-                    ret = s;
-                    lastModifiedMax = s.getLastModified();
-                } else if (s.getLastModified().after(lastModifiedMax)) {
-                    ret = s;
-                    lastModifiedMax = s.getLastModified();
-                }
-            } else {
-                deletedSiblingsCount ++;
+        Test1 ret = null;
+        long lastModifiedMax = 0;
+        for (Test1 s: siblings) {
+            if (ret == null) {
+                ret = s;
+                lastModifiedMax = s.getTimestamp();
+            } else if (s.getTimestamp() > lastModifiedMax) {
+                ret = s;
+                lastModifiedMax = s.getTimestamp();
             }
         }
         return ret;

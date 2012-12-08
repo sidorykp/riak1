@@ -1,7 +1,6 @@
 package pl.nlogn.sandbox.riak;
 
 import com.basho.riak.client.IRiakClient;
-import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakException;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
@@ -22,24 +21,24 @@ import pl.nlogn.sandbox.riak.domain.Test1;
 * License for the specific language governing permissions and limitations under
 * the License.
 * User: pawel
-* Date: 12/2/12
-* Time: 9:11 PM
+* Date: 12/8/12
+* Time: 3:46 PM
 */
-public abstract class HttpSingleRecordChangeCommand implements DataChangeCommand {
+public abstract class HttpSingleRecordPojoChangeCommand implements DataChangeCommand {
     private IRiakClient httpClient;
 
     private Bucket myBucket;
 
     private String key;
 
-    protected FreshDeleteConflictResolver resPre;
+    protected FreshPojoDeleteConflictResolver resPre;
 
-    protected FreshDeleteConflictResolver resPost;
+    protected FreshPojoDeleteConflictResolver resPost;
 
-    private IRiakObject riakObject;
+    private Test1 riakObject;
 
-    public HttpSingleRecordChangeCommand(String clientUrl, String bucket, String key
-            , FreshDeleteConflictResolver resPre, FreshDeleteConflictResolver resPost) {
+    public HttpSingleRecordPojoChangeCommand(String clientUrl, String bucket, String key
+            , FreshPojoDeleteConflictResolver resPre, FreshPojoDeleteConflictResolver resPost) {
         this.resPre = resPre;
         this.resPost = resPost;
         this.key = key;
@@ -71,11 +70,11 @@ public abstract class HttpSingleRecordChangeCommand implements DataChangeCommand
         return resPost.getDeletedSiblingsCount();
     }
 
-    public IRiakObject getRiakObject() {
+    public Test1 getRiakObject() {
         return riakObject;
     }
 
-    public void setRiakObject(IRiakObject riakObject) {
+    public void setRiakObject(Test1 riakObject) {
         this.riakObject = riakObject;
     }
 }

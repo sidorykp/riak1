@@ -1,5 +1,8 @@
 package pl.nlogn.sandbox.riak;
 
+import com.basho.riak.client.IRiakObject;
+import com.basho.riak.client.cap.ConflictResolver;
+
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
 *
@@ -15,11 +18,11 @@ package pl.nlogn.sandbox.riak;
 * License for the specific language governing permissions and limitations under
 * the License.
 * User: pawel
-* Date: 12/2/12
-* Time: 11:05 AM
+* Date: 12/8/12
+* Time: 3:34 PM
 */
-public interface DataChangeCommand {
-    public void execute() throws Exception;
+public interface AuditableConflictResolver {
+    public int getSiblingsCount();
 
-    public String getKey();
+    public int getDeletedSiblingsCount();
 }

@@ -5,6 +5,7 @@ import com.basho.riak.client.IRiakClient;
 import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
+import com.basho.riak.client.cap.Mutation;
 import junit.framework.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
@@ -13,6 +14,7 @@ import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import pl.nlogn.sandbox.riak.domain.Test1;
+import pl.nlogn.sandbox.riak.domain.Test1Mutation;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -55,25 +57,15 @@ public class HttpClientTest {
         httpClient = RiakFactory.httpClient(RIAK_URL[0]);
         myBucket = httpClient.fetchBucket(REC_BUCKET1).execute();
         myBucket.store(REC_KEY1, REC_VALUE1).execute();
+        Test1 pojo = new Test1(REC_KEY2, REC_VALUE2);
+        myBucket.store(pojo).execute();
     }
 
     @After
     public void tearDown() throws Exception {
         myBucket.delete(REC_KEY1).execute();
+        myBucket.delete(REC_KEY2).execute();
         httpClient.shutdown();
-    }
-
-    @Test
-    public void testFetchPojo() throws Exception {
-        Test1 pojo = new Test1(REC_KEY2, REC_VALUE2);
-
-        myBucket.store(pojo).execute();
-
-        pojo = myBucket.fetch(REC_KEY2, Test1.class).execute();
-
-        System.out.println(pojo.toString());
-
-        myBucket.delete(REC_KEY2);
     }
 
     @Test
@@ -93,6 +85,23 @@ public class HttpClientTest {
         System.out.println(myObject.getValueAsString());
         System.out.println("vclock: " + myObject.getVClockAsString());
         Assert.assertEquals(2, res1.getSiblingsCount());
+    }
+
+    @Test
+    public void testFetchPojo() throws Exception {
+        FreshPojoDeleteConflictResolver res1 = new FreshPojoDeleteConflictResolver();
+        Test1 myObject = myBucket.fetch(REC_KEY2, Test1.class).withResolver(res1).execute();
+        System.out.println(myObject);
+
+        myObject.setValue(myObject.getValue() + 1);
+        myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
+        System.out.println(myObject);
+
+        myBucket.delete(REC_KEY2).execute();
+        myObject = new Test1(REC_KEY2, REC_VALUE2);
+        myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
+        System.out.println(myObject);
+        Assert.assertEquals(1, res1.getSiblingsCount());
     }
 
     @Test
@@ -124,20 +133,48 @@ public class HttpClientTest {
         }
     }
 
+    @Test
+    @BMScript(value="testUpdate_parallel1", dir="target/test-classes")
+    public void testPojoUpdate_Parallel1() throws Exception {
+        int clientCount = 50;
+        HttpSingleRecordPojoChangeCommand[] updates = new HttpSingleRecordPojoChangeCommand[clientCount];
+        DataChangeExecutor[] executors = new DataChangeExecutor[clientCount];
+        for (int i = 0; i < clientCount; ++ i) {
+            if (i % 2 == 0) {
+                updates[i] = new PojoUpdateChangeCommand(RIAK_URL[(i/2) % 2], REC_BUCKET1, REC_KEY2);
+            } else {
+                updates[i] = new PojoDeleteChangeCommand(RIAK_URL[(i/2) % 2], REC_BUCKET1, REC_KEY2);
+            }
+            executors[i] = new DataChangeExecutor("Change" + i, updates[i]);
+        }
+        for (int i = 0; i < clientCount; ++ i) {
+            executors[i].start();
+        }
+        for (int i = 0; i < clientCount; ++ i) {
+            executors[i].join();
+        }
+        System.out.println("siblings: pre : deletedPre : post : deletedPost");
+        for (int i = 0; i < clientCount; ++ i) {
+            System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
+                    + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
+            System.out.println(" : " + (updates[i].getRiakObject() != null ? updates[i].getRiakObject().getTimestamp() + " : " + updates[i].getRiakObject().getValue() : ""));
+        }
+    }
+
     private class UpdateChangeCommand extends HttpSingleRecordChangeCommand {
 
         public UpdateChangeCommand(String clientUrl, String bucket, String key) {
-            super(clientUrl, bucket, key);
+            super(clientUrl, bucket, key, new FreshDeleteConflictResolver(), new FreshDeleteConflictResolver());
         }
 
         @Override
         public void execute() throws Exception {
-            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(resPre).execute();
+            IRiakObject myObject = myBucket.fetch(getKey()).withResolver(resPre).execute();
             if (myObject != null) {
                 myObject.setValue(myObject.getValueAsString() + 1);
                 setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
             } else {
-                setRiakObject(myBucket.store(REC_KEY1, REC_VALUE1).returnBody(true).withResolver(resPost).execute());
+                setRiakObject(myBucket.store(getKey(), REC_VALUE1).returnBody(true).withResolver(resPost).execute());
             }
             httpClient.shutdown();
         }
@@ -146,12 +183,66 @@ public class HttpClientTest {
     private class DeleteChangeCommand extends HttpSingleRecordChangeCommand {
 
         public DeleteChangeCommand(String clientUrl, String bucket, String key) {
-            super(clientUrl, bucket, key);
+            super(clientUrl, bucket, key, new FreshDeleteConflictResolver(), new FreshDeleteConflictResolver());
         }
 
         @Override
         public void execute() throws Exception {
-            IRiakObject myObject = myBucket.fetch(REC_KEY1).withResolver(resPre).execute();
+            IRiakObject myObject = myBucket.fetch(getKey()).withResolver(resPre).execute();
+            if (myObject != null) {
+                myBucket.delete(myObject).execute();
+            }
+            httpClient.shutdown();
+        }
+    }
+
+    private class PojoUpdateChangeCommand extends HttpSingleRecordPojoChangeCommand {
+
+        public PojoUpdateChangeCommand(String clientUrl, String bucket, String key) {
+            super(clientUrl, bucket, key, new FreshPojoDeleteConflictResolver(), new FreshPojoDeleteConflictResolver());
+        }
+
+        @Override
+        public void execute() throws Exception {
+            Test1 myObject = null;
+            try {
+                myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
+            } catch (Exception e) {
+                System.out.println(e);
+            }
+            if (myObject != null) {
+                Mutation<Test1> mutation = new Test1Mutation("1");
+                try {
+                    setRiakObject(myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(resPost).execute());
+                } catch (Exception e) {
+                    System.out.println(e);
+                }
+            } else {
+                myObject = new Test1(getKey(), REC_VALUE2);
+                try {
+                    setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
+                } catch (Exception e) {
+                    System.out.println(e);
+                }
+            }
+            httpClient.shutdown();
+        }
+    }
+
+    private class PojoDeleteChangeCommand extends HttpSingleRecordPojoChangeCommand {
+
+        public PojoDeleteChangeCommand(String clientUrl, String bucket, String key) {
+            super(clientUrl, bucket, key, new FreshPojoDeleteConflictResolver(), new FreshPojoDeleteConflictResolver());
+        }
+
+        @Override
+        public void execute() throws Exception {
+            Test1 myObject = null;
+            try {
+                myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
+            } catch (Exception e) {
+                System.out.println(e);
+            }
             if (myObject != null) {
                 myBucket.delete(myObject).execute();
             }
