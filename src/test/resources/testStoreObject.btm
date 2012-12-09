@@ -1,0 +1,10 @@
+RULE Tracing StoreObject.execute
+CLASS com.basho.riak.client.operations.StoreObject
+METHOD execute
+HELPER pl.nlogn.sandbox.riak.byteman.RiakResponseHelper
+AFTER WRITE $stored
+BIND stored:RiakResponse = $stored;
+IF TRUE
+DO
+showRiakResponse(stored);
+ENDRULE

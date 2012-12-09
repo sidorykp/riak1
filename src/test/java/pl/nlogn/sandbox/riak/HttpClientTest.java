@@ -8,6 +8,7 @@ import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.Mutation;
 import junit.framework.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
+import org.jboss.byteman.contrib.bmunit.BMScripts;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
 import org.junit.After;
 import org.junit.Before;
@@ -141,12 +142,15 @@ public class HttpClientTest {
             System.out.print(updates[i].getSiblingsCountPre() + " : " + updates[i].getDeletedSiblingsCountPre()
                     + " : " + updates[i].getSiblingsCountPost() + " : " + updates[i].getDeletedSiblingsCountPost());
             // NOTE the resolution of "lastModified" is very low, it looks like the resolution is 1 second
-            System.out.println(" : " + (updates[i].getRiakObject() != null ? (updates[i].getRiakObject().getLastModified().getTime() - start): ""));
+            System.out.println(" : " + (updates[i].getRiakObject() != null ? (updates[i].getRiakObject().getLastModified().getTime() - start) + " : " + updates[i].getRiakObject().getValueAsString() : ""));
         }
     }
 
     @Test
-    @BMScript(value="testUpdate_parallel1", dir="target/test-classes")
+    @BMScripts(
+            scripts={@BMScript(value="testUpdate_parallel1", dir="target/test-classes")
+            ,@BMScript(value="testStoreObject", dir="target/test-classes")}
+    )
     public void testPojoUpdate_Parallel1() throws Exception {
         int clientCount = 50;
         HttpSingleRecordPojoChangeCommand[] updates = new HttpSingleRecordPojoChangeCommand[clientCount];
@@ -221,7 +225,7 @@ public class HttpClientTest {
             try {
                 myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
             } catch (Exception e) {
-                System.out.println("Bug 3: " + e);
+                System.out.println(Thread.currentThread().getName() + " Bug 3: ");
             }
             if (myObject != null) {
                 myObject.setValue(myObject.getValue() + "1");
@@ -230,14 +234,14 @@ public class HttpClientTest {
                     // the error will occur when a JSON conversion on a tombstone occurs
                     setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
-                    System.out.println("Bug 2: " + e);
+                    System.out.println(Thread.currentThread().getName() + " Bug 2: ");
                 }
             } else {
                 myObject = new Test1(getKey(), REC_VALUE2);
                 try {
                     setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
-                    System.out.println("Bug 4: " + e);
+                    System.out.println(Thread.currentThread().getName() + " Bug 4: ");
                 }
             }
             httpClient.shutdown();
@@ -256,7 +260,7 @@ public class HttpClientTest {
             try {
                 myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
             } catch (Exception e) {
-                System.out.println(e);
+                System.out.println(Thread.currentThread().getName() + " Bug 5: ");
             }
             if (myObject != null) {
                 myBucket.delete(myObject).execute();

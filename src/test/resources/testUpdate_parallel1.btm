@@ -51,13 +51,3 @@ DO
 traceln("rendezvous1: " + incrementCounter("threads1Cnt"));
 rendezvous("threads1");
 ENDRULE
-
-RULE Tracing StoreObject.execute
-CLASS com.basho.riak.client.operations.StoreObject
-METHOD execute
-AFTER WRITE $stored
-BIND stored:RiakResponse = $stored;
-IF TRUE
-DO
-traceln("stored:" + stored.numberOfValues());
-ENDRULE
