@@ -222,24 +222,26 @@ public class HttpClientTest {
         @Override
         public void execute() throws Exception {
             Test1 myObject = null;
+            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier(1);
             try {
-                myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
+                myObject = myBucket.fetch(getKey(), Test1.class).withRetrier(retrier).withResolver(resPre).execute();
             } catch (Exception e) {
                 System.out.println(Thread.currentThread().getName() + " Bug 3: ");
             }
             if (myObject != null) {
                 myObject.setValue(myObject.getValue() + "1");
+                myObject.setTimestamp(System.currentTimeMillis());
                 try {
                     // TODO when a tombstone is available at this moment then an error will occur
                     // the error will occur when a JSON conversion on a tombstone occurs
-                    setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
+                    setRiakObject(myBucket.store(myObject).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
                     System.out.println(Thread.currentThread().getName() + " Bug 2: ");
                 }
             } else {
                 myObject = new Test1(getKey(), REC_VALUE2);
                 try {
-                    setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
+                    setRiakObject(myBucket.store(myObject).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
                     System.out.println(Thread.currentThread().getName() + " Bug 4: ");
                 }
@@ -257,8 +259,9 @@ public class HttpClientTest {
         @Override
         public void execute() throws Exception {
             Test1 myObject = null;
+            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier(1);
             try {
-                myObject = myBucket.fetch(getKey(), Test1.class).withResolver(resPre).execute();
+                myObject = myBucket.fetch(getKey(), Test1.class).withRetrier(retrier).withResolver(resPre).execute();
             } catch (Exception e) {
                 System.out.println(Thread.currentThread().getName() + " Bug 5: ");
             }
