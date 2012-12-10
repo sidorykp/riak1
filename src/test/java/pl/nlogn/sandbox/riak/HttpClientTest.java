@@ -94,7 +94,7 @@ public class HttpClientTest {
         Test1 myObject = myBucket.fetch(REC_KEY2, Test1.class).withResolver(res1).execute();
         System.out.println(myObject);
 
-        Mutation<Test1> mutation = new Test1Mutation("1");
+        Mutation<Test1> mutation = new Test1Mutation(null, "1");
         myObject = myBucket.store(myObject).returnBody(true).withMutator(mutation).withResolver(res1).execute();
         System.out.println(myObject);
 
@@ -103,14 +103,10 @@ public class HttpClientTest {
         Assert.assertNull(myObject);
 
         myObject = new Test1(REC_KEY2, REC_VALUE2);
-        try {
-            // TODO The object does not exist an we try to use a Mutation: NPE occurs, this is a bug
-            // in the Riak Client code
-            myObject = myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(res1).execute();
-            Assert.fail("The expected bug has been fixed, strange");
-        } catch (NullPointerException e) {
-            System.out.println("Bug 1");
-        }
+        mutation = new Test1Mutation(myObject, "1");
+
+        myObject = myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(res1).execute();
+
         myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject);
         Assert.assertEquals(1, res1.getSiblingsCount());
@@ -222,26 +218,25 @@ public class HttpClientTest {
         @Override
         public void execute() throws Exception {
             Test1 myObject = null;
-            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier(1);
+            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier();
             try {
                 myObject = myBucket.fetch(getKey(), Test1.class).withRetrier(retrier).withResolver(resPre).execute();
             } catch (Exception e) {
                 System.out.println(Thread.currentThread().getName() + " Bug 3: ");
             }
             if (myObject != null) {
-                myObject.setValue(myObject.getValue() + "1");
-                myObject.setTimestamp(System.currentTimeMillis());
+                myObject = new Test1(REC_KEY2, REC_VALUE2);
+                Mutation<Test1> mutation = new Test1Mutation(myObject, "1");
                 try {
-                    // TODO when a tombstone is available at this moment then an error will occur
-                    // the error will occur when a JSON conversion on a tombstone occurs
-                    setRiakObject(myBucket.store(myObject).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
+                    setRiakObject(myBucket.store(myObject).withMutator(mutation).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
                     System.out.println(Thread.currentThread().getName() + " Bug 2: ");
                 }
             } else {
                 myObject = new Test1(getKey(), REC_VALUE2);
+                Mutation<Test1> mutation = new Test1Mutation(myObject, "1");
                 try {
-                    setRiakObject(myBucket.store(myObject).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
+                    setRiakObject(myBucket.store(myObject).withMutator(mutation).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
                     System.out.println(Thread.currentThread().getName() + " Bug 4: ");
                 }
@@ -259,7 +254,7 @@ public class HttpClientTest {
         @Override
         public void execute() throws Exception {
             Test1 myObject = null;
-            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier(1);
+            TombstoneSkippingRetrier retrier = new TombstoneSkippingRetrier();
             try {
                 myObject = myBucket.fetch(getKey(), Test1.class).withRetrier(retrier).withResolver(resPre).execute();
             } catch (Exception e) {

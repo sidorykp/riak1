@@ -26,8 +26,10 @@ import java.util.concurrent.Callable;
 * Time: 5:04 PM
 */
 public class TombstoneSkippingRetrier extends DefaultRetrier {
-    public TombstoneSkippingRetrier(int attempts) {
-        super(attempts);
+    public static final int ATTEMPTS_DEFAULT = 3;
+
+    public TombstoneSkippingRetrier() {
+        super(ATTEMPTS_DEFAULT);
     }
 
     @Override

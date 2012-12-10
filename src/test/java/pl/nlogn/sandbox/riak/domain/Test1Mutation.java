@@ -24,7 +24,10 @@ import com.basho.riak.client.cap.Mutation;
 public class Test1Mutation implements Mutation<Test1> {
     private String sufix;
 
-    public Test1Mutation(String sufix) {
+    private Test1 defaultValue;
+
+    public Test1Mutation(Test1 defaultValue, String sufix) {
+        this.defaultValue = defaultValue;
         this.sufix = sufix;
     }
 
@@ -33,6 +36,8 @@ public class Test1Mutation implements Mutation<Test1> {
         if (original != null) {
             original.setValue(original.getValue() + sufix);
             original.setTimestamp(System.currentTimeMillis());
+        } else {
+            return defaultValue;
         }
         return original;
     }
