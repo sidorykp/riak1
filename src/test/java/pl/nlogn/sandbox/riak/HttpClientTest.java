@@ -6,7 +6,7 @@ import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.Mutation;
-import junit.framework.Assert;
+import org.junit.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
 import org.jboss.byteman.contrib.bmunit.BMScripts;
 import org.jboss.byteman.contrib.bmunit.BMUnitRunner;
