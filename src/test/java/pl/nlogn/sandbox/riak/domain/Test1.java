@@ -1,6 +1,7 @@
 package pl.nlogn.sandbox.riak.domain;
 
 import com.basho.riak.client.cap.VClock;
+import com.basho.riak.client.convert.RiakIndex;
 import com.basho.riak.client.convert.RiakKey;
 import com.basho.riak.client.convert.RiakVClock;
 
@@ -30,6 +31,9 @@ public class Test1 {
     private VClock vclock;
 
     private String value;
+
+    @RiakIndex(name = "index1_bin")
+    private String value_index1;
 
     private long timestamp;
 
@@ -78,5 +82,13 @@ public class Test1 {
 
     public void setValue(String value) {
         this.value = value;
+    }
+
+    public String getValue_index1() {
+        return value_index1;
+    }
+
+    public void setValue_index1(String value_index1) {
+        this.value_index1 = value_index1;
     }
 }

@@ -32,6 +32,7 @@ public class FreshDeleteConflictResolver implements ConflictResolver<IRiakObject
     @Override
     public IRiakObject resolve(Collection<IRiakObject> siblings) {
         siblingsCount = siblings.size();
+        deletedSiblingsCount = 0;
         IRiakObject ret = null;
         Date lastModifiedMax = null;
         for (IRiakObject s: siblings) {

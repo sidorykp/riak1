@@ -6,6 +6,7 @@ import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.Mutation;
+import com.basho.riak.client.query.indexes.BinIndex;
 import org.junit.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
 import org.jboss.byteman.contrib.bmunit.BMScripts;
@@ -16,6 +17,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import pl.nlogn.sandbox.riak.domain.Test1;
 import pl.nlogn.sandbox.riak.domain.Test1Mutation;
+
+import java.util.List;
 
 /*
 * Copyright 2012 Nlogn Paweł Sidoryk
@@ -37,7 +40,9 @@ import pl.nlogn.sandbox.riak.domain.Test1Mutation;
 */
 @RunWith(BMUnitRunner.class)
 public class HttpClientTest {
-    public static final String[] RIAK_URL = {"http://192.168.0.4:8098/riak", "http://192.168.0.11:8098/riak", "http://192.168.0.12:8098/riak"};
+    //public static final String[] RIAK_URL = {"http://192.168.0.31:8098/riak", "http://192.168.0.32:8098/riak", "http://192.168.0.33:8098/riak"};
+    //public static final String[] RIAK_URL = {"http://192.168.0.4:8098/riak"};
+    public static final String[] RIAK_URL = {"http://127.0.0.1:10018/riak","http://127.0.0.1:10028/riak","http://127.0.0.1:10038/riak","http://127.0.0.1:10048/riak"};
 
     public static final String REC_BUCKET1 = "test1";
 
@@ -48,6 +53,7 @@ public class HttpClientTest {
     public static final String REC_VALUE1 = "value1";
 
     public static final String REC_VALUE2 = "value2";
+    public static final String REC_VALUE2_INDEX1 = "value2_index1";
 
     private IRiakClient httpClient;
 
@@ -57,8 +63,10 @@ public class HttpClientTest {
     public void setUp() throws Exception {
         httpClient = RiakFactory.httpClient(RIAK_URL[0]);
         myBucket = httpClient.fetchBucket(REC_BUCKET1).execute();
+        myBucket = httpClient.updateBucket(myBucket).allowSiblings(true).execute();
         myBucket.store(REC_KEY1, REC_VALUE1).execute();
         Test1 pojo = new Test1(REC_KEY2, REC_VALUE2);
+        pojo.setValue_index1(REC_VALUE2_INDEX1);
         myBucket.store(pojo).execute();
     }
 
@@ -67,6 +75,16 @@ public class HttpClientTest {
         myBucket.delete(REC_KEY1).execute();
         myBucket.delete(REC_KEY2).execute();
         httpClient.shutdown();
+    }
+
+    @Test
+    public void testListKeys() throws Exception {
+        Bucket testBucket = httpClient.fetchBucket(REC_BUCKET1).execute();
+        int keyCnt = 0;
+        for (String key: testBucket.keys()) {
+            ++ keyCnt;
+        }
+        Assert.assertEquals(2, keyCnt);
     }
 
     @Test
@@ -110,6 +128,13 @@ public class HttpClientTest {
         myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject);
         Assert.assertEquals(1, res1.getSiblingsCount());
+    }
+
+    @Test
+    public void testFetchPojoWithIndex() throws Exception {
+        List<String> keys = myBucket.fetchIndex(BinIndex.named("index1_bin")).withValue(REC_VALUE2_INDEX1).execute();
+        System.out.println(keys);
+        Assert.assertEquals(1, keys.size());
     }
 
     @Test
