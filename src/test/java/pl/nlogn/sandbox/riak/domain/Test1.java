@@ -28,7 +28,7 @@ public class Test1 {
     private String key;
 
     @RiakVClock
-    private VClock vclock;
+    private byte[] vclock;
 
     private String value;
 
@@ -44,11 +44,11 @@ public class Test1 {
         return key;
     }
 
-    public VClock getVclock() {
+    public byte[] getVclock() {
         return vclock;
     }
 
-    public void setVclock(VClock vclock) {
+    public void setVclock(byte[] vclock) {
         this.vclock = vclock;
     }
 
@@ -68,7 +68,7 @@ public class Test1 {
                 "key='" + key + '\'' +
                 ", value='" + value + '\'' +
                 ", timestamp=" + timestamp +
-                ", vclock=" + vclock.asString() +
+                ", vclock=" + new String(vclock) +
                 '}';
     }
 
