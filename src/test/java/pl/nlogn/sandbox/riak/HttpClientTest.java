@@ -6,6 +6,7 @@ import com.basho.riak.client.IRiakObject;
 import com.basho.riak.client.RiakFactory;
 import com.basho.riak.client.bucket.Bucket;
 import com.basho.riak.client.cap.Mutation;
+import com.basho.riak.client.cap.UnresolvedConflictException;
 import com.basho.riak.client.query.indexes.BinIndex;
 import org.junit.Assert;
 import org.jboss.byteman.contrib.bmunit.BMScript;
@@ -44,7 +45,7 @@ public class HttpClientTest {
     //public static final String[] RIAK_URL = {"http://192.168.0.4:8098/riak"};
     public static final String[] RIAK_URL = {"http://127.0.0.1:10018/riak","http://127.0.0.1:10028/riak","http://127.0.0.1:10038/riak","http://127.0.0.1:10048/riak"};
 
-    public static final String REC_BUCKET1 = "test1";
+    public static final String REC_BUCKET1 = "testclient1";
 
     public static final String REC_KEY1 = "conc1";
 
@@ -125,9 +126,21 @@ public class HttpClientTest {
 
         myObject = myBucket.store(myObject).withMutator(mutation).returnBody(true).withResolver(res1).execute();
 
-        myObject = myBucket.store(myObject).returnBody(true).withResolver(res1).execute();
         System.out.println(myObject);
         Assert.assertEquals(1, res1.getSiblingsCount());
+    }
+
+    @Test
+    public void testDifferentClientIdsPojo() throws Exception {
+        Test1 obj1 = myBucket.fetch(REC_KEY2, Test1.class).execute();
+
+        myBucket.store(obj1).execute();
+
+        try {
+            Test1 obj2 = myBucket.store(obj1).withoutFetch().returnBody(true).execute();
+            Assert.fail("An exception should be thrown here");
+        } catch (UnresolvedConflictException e) {
+        }
     }
 
     @Test
@@ -210,7 +223,7 @@ public class HttpClientTest {
             IRiakObject myObject = myBucket.fetch(getKey()).withResolver(resPre).execute();
             if (myObject != null) {
                 myObject.setValue(myObject.getValueAsString() + 1);
-                setRiakObject(myBucket.store(myObject).returnBody(true).withResolver(resPost).execute());
+                setRiakObject(myBucket.store(myObject).withoutFetch().returnBody(true).withResolver(resPost).execute());
             } else {
                 setRiakObject(myBucket.store(getKey(), REC_VALUE1).returnBody(true).withResolver(resPost).execute());
             }
@@ -228,7 +241,7 @@ public class HttpClientTest {
         public void execute() throws Exception {
             IRiakObject myObject = myBucket.fetch(getKey()).withResolver(resPre).execute();
             if (myObject != null) {
-                myBucket.delete(myObject).execute();
+                myBucket.delete(myObject).fetchBeforeDelete(false).execute();
             }
             httpClient.shutdown();
         }
@@ -250,10 +263,9 @@ public class HttpClientTest {
                 System.out.println(Thread.currentThread().getName() + " Bug 3: ");
             }
             if (myObject != null) {
-                myObject = new Test1(REC_KEY2, REC_VALUE2);
                 Mutation<Test1> mutation = new Test1Mutation(myObject, "1");
                 try {
-                    setRiakObject(myBucket.store(myObject).withMutator(mutation).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
+                    setRiakObject(myBucket.store(myObject).withoutFetch().withMutator(mutation).withRetrier(retrier).returnBody(true).withResolver(resPost).execute());
                 } catch (Exception e) {
                     System.out.println(Thread.currentThread().getName() + " Bug 2: ");
                 }
@@ -286,7 +298,7 @@ public class HttpClientTest {
                 System.out.println(Thread.currentThread().getName() + " Bug 5: ");
             }
             if (myObject != null) {
-                myBucket.delete(myObject).execute();
+                myBucket.delete(myObject).fetchBeforeDelete(false).execute();
             }
             httpClient.shutdown();
         }
